@@ -8,27 +8,45 @@ rules:
       unhandled 500 / potential request crash. Guard the header before splitting.
       (Note: an optional chain that stops at the property but not the call —
       req.headers?.['authorization'].split(...) — still throws when the header is missing.)
-    patterns:
-      - pattern-either:
-          - pattern: $REQ.headers?.["authorization"].split($S)
-          - pattern: $REQ.headers["authorization"].split($S)
-          - pattern: $REQ.headers.authorization.split($S)
-      # Guarded forms: inside a check on the header…
-      - pattern-not-inside: |
-          if (<... $REQ.headers["authorization"] ...>) { ... }
-      - pattern-not-inside: |
-          if (<... $REQ.headers.authorization ...>) { ... }
-      - pattern-not-inside: '<... $REQ.headers["authorization"] ...> && $E'
-      - pattern-not-inside: '<... $REQ.headers.authorization ...> && $E'
-      - pattern-not-inside: '<... $REQ.headers["authorization"] ...> ? $A : $B'
-      - pattern-not-inside: '<... $REQ.headers.authorization ...> ? $A : $B'
-      # …or after an early exit when it is missing.
-      - pattern-not-inside: |
-          if (!$REQ.headers["authorization"]) { ... }
-          ...
-      - pattern-not-inside: |
-          if (!$REQ.headers.authorization) { ... }
-          ...
+    pattern-either:
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.headers?.["authorization"].split($S)
+              - pattern: $REQ.headers["authorization"].split($S)
+              - pattern: $REQ.headers.authorization.split($S)
+          # Guarded: the header itself (not any expression mentioning it) is the
+          # condition, or the code runs after a branch that leaves when it is missing.
+          - pattern-not-inside: |
+              if ($REQ.headers["authorization"]) { ... }
+          - pattern-not-inside: |
+              if ($REQ.headers.authorization) { ... }
+          - pattern-not-inside: $REQ.headers["authorization"] && $E
+          - pattern-not-inside: $REQ.headers.authorization && $E
+          - pattern-not-inside: '$REQ.headers["authorization"] ? $A : $B'
+          - pattern-not-inside: '$REQ.headers.authorization ? $A : $B'
+          - pattern-not-inside: |
+              if (!$REQ.headers["authorization"]) { ... return ...; }
+              ...
+          - pattern-not-inside: |
+              if (!$REQ.headers.authorization) { ... return ...; }
+              ...
+          - pattern-not-inside: |
+              if (!$REQ.headers["authorization"]) { ... throw $X; }
+              ...
+          - pattern-not-inside: |
+              if (!$REQ.headers.authorization) { ... throw $X; }
+              ...
+      # Inside the branch taken when the header is missing: always a crash.
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.headers?.["authorization"].split($S)
+              - pattern: $REQ.headers["authorization"].split($S)
+              - pattern: $REQ.headers.authorization.split($S)
+          - pattern-either:
+              - pattern-inside: |
+                  if (!$REQ.headers["authorization"]) { ... }
+              - pattern-inside: |
+                  if (!$REQ.headers.authorization) { ... }
     metadata:
       category: availability
       vulnerability_class: unhandled exception / DoS

@@ -4,6 +4,7 @@ name: semgrep
 # Diff-aware on PRs: only findings INTRODUCED by the PR block the build, so
 # pre-existing / accepted findings don't wall off unrelated changes. The goal is
 # to stop NEW hardcoded secrets and other flagged anti-patterns from landing.
+
 # Runs on pull requests only, to save Actions minutes.
 
 on:
@@ -16,8 +17,9 @@ jobs:
   semgrep:
     name: semgrep (custom rules)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     container:
-      image: semgrep/semgrep
+      image: semgrep/semgrep:1.171.0
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,8 +28,19 @@ jobs:
       - name: Mark workspace safe for git
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      # Non-regression on the rules themselves: each rule .yml is tested against
+      # its sibling .js fixture (annotated `// ruleid:` / `// ok:` lines). The
+      # fixtures carry intentional fake secrets, hence they are --exclude'd from
+      # the scan below.
+      - name: Test custom rules against fixtures
+        run: |
+          for rule in .semgrep/*.yml; do
+            echo "Testing $rule"
+            semgrep --test --config "$rule" "${rule%.yml}.js"
+          done
+
       - name: Diff-aware scan (blocks findings introduced by the PR)
         run: >-
-          semgrep scan --config .semgrep --error --metrics=off
+          semgrep scan --config .semgrep --error --metrics=off --exclude=.semgrep
           --baseline-commit "${{ github.event.pull_request.base.sha }}"
 
