@@ -1,0 +1,35 @@
+rules:
+  - id: unguarded-authorization-header-split
+    languages: [typescript, javascript]
+    severity: WARNING
+    message: |
+      Reading req.headers['authorization'].split(' ')[1] where the header may be
+      absent throws a TypeError (cannot read 'split' of undefined), which becomes an
+      unhandled 500 / potential request crash. Guard the header before splitting.
+      (Note: an optional chain that stops at the property but not the call —
+      req.headers?.['authorization'].split(...) — still throws when the header is missing.)
+    patterns:
+      - pattern-either:
+          - pattern: $REQ.headers?.["authorization"].split($S)
+          - pattern: $REQ.headers["authorization"].split($S)
+          - pattern: $REQ.headers.authorization.split($S)
+      # Guarded forms: inside a check on the header…
+      - pattern-not-inside: |
+          if (<... $REQ.headers["authorization"] ...>) { ... }
+      - pattern-not-inside: |
+          if (<... $REQ.headers.authorization ...>) { ... }
+      - pattern-not-inside: '<... $REQ.headers["authorization"] ...> && $E'
+      - pattern-not-inside: '<... $REQ.headers.authorization ...> && $E'
+      - pattern-not-inside: '<... $REQ.headers["authorization"] ...> ? $A : $B'
+      - pattern-not-inside: '<... $REQ.headers.authorization ...> ? $A : $B'
+      # …or after an early exit when it is missing.
+      - pattern-not-inside: |
+          if (!$REQ.headers["authorization"]) { ... }
+          ...
+      - pattern-not-inside: |
+          if (!$REQ.headers.authorization) { ... }
+          ...
+    metadata:
+      category: availability
+      vulnerability_class: unhandled exception / DoS
+      confidence: medium

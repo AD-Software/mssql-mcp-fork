@@ -1,0 +1,33 @@
+name: semgrep
+
+# Custom Semgrep rules (.semgrep/) wired as a CI gate.
+# Diff-aware on PRs: only findings INTRODUCED by the PR block the build, so
+# pre-existing / accepted findings don't wall off unrelated changes. The goal is
+# to stop NEW hardcoded secrets and other flagged anti-patterns from landing.
+# Runs on pull requests only, to save Actions minutes.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  semgrep:
+    name: semgrep (custom rules)
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history needed for diff-aware baseline
+
+      - name: Mark workspace safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Diff-aware scan (blocks findings introduced by the PR)
+        run: >-
+          semgrep scan --config .semgrep --error --metrics=off
+          --baseline-commit "${{ github.event.pull_request.base.sha }}"
+
