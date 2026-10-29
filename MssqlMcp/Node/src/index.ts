@@ -51,8 +51,14 @@ const server = new Server(
   { capabilities: { tools: {} } },
 );
 
+// Expose only the MCP fields: the tool instances also hold the ConnectionManager,
+// whose config (server passwords included) would otherwise be serialized here.
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: config.readonly ? readOnlyTools : allTools,
+  tools: (config.readonly ? readOnlyTools : allTools).map(({ name, description, inputSchema }) => ({
+    name,
+    description,
+    inputSchema,
+  })),
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
