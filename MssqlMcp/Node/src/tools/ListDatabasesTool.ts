@@ -22,7 +22,7 @@ export class ListDatabasesTool implements Tool {
         description: "Filter by client (case-insensitive)",
       },
     },
-    required: [],
+    required: [] as string[],
   } as const;
 
   constructor(private manager: ConnectionManager) {}
